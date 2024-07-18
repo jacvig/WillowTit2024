@@ -104,5 +104,19 @@ zf_filtered <- zf |>
          effort_speed_kmph <= 100,
          number_observers <= 10)
 
+# randomly split the data into training 80% and testing 20% sets
+zf_filtered$type <- if_else(runif(nrow(zf_filtered)) <= 0.8, "train", "test")
+# confirm the proportion in each set is correct
+table(zf_filtered$type) / nrow(zf_filtered)
 
-
+# remove redundant varaibles
+checklists <- zf_filtered |> 
+  select(checklist_id, observer_id, type,
+         observation_count, species_observed, 
+         state_code, locality_id, latitude, longitude,
+         protocol_type, all_species_reported,
+         observation_date, year, day_of_year,
+         hours_of_day, 
+         effort_hours, effort_distance_km, effort_speed_kmph,
+         number_observers)
+write_csv(checklists, "data/checklists-zf_wiltit_jun_gb.csv", na = "")
