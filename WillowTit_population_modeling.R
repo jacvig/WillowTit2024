@@ -104,12 +104,25 @@ zf_filtered <- zf |>
          effort_speed_kmph <= 100,
          number_observers <= 10)
 
+
+# plot one of the effort variables to see distribution
+ggplot(zf_filtered)+
+  aes(x = effort_hours)+
+  geom_histogram(binwidth = 0.5,
+                 aes(y = after_stat(count/ sum(count))))+
+  scale_y_continuous(limits = c(0, NA), labels = scales::label_percent())+
+  labs(x = "Duration [hours]",
+       y = "% of eBird checklists",
+       title =  "Distribution of eBird checklist duration")
+
+
+
 # randomly split the data into training 80% and testing 20% sets
 zf_filtered$type <- if_else(runif(nrow(zf_filtered)) <= 0.8, "train", "test")
 # confirm the proportion in each set is correct
 table(zf_filtered$type) / nrow(zf_filtered)
 
-# remove redundant varaibles
+# remove redundant variables
 checklists <- zf_filtered |> 
   select(checklist_id, observer_id, type,
          observation_count, species_observed, 

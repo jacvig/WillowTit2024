@@ -53,3 +53,50 @@ write_sf(ne_countries, gpkg_file, "ne_countries")
 write_sf(ne_states, gpkg_file, "ne_states")
 write_sf(ne_country_lines, gpkg_file, "ne_country_lines")
 write_sf(ne_state_lines, gpkg_file, "ne_state_lines")
+
+
+
+# Exploratory analysis and visualisation
+# load gis data
+ne_land <- read_sf("data/gis-data.gpkg", "ne_land") |> 
+  st_geometry()
+ne_country_lines <- read_sf("data/gis-data.gpkg", "ne_country_lines") |> 
+  st_geometry()
+ne_state_lines <- read_sf("data/gis-data.gpkg", "ne_state_lines") |> 
+  st_geometry()
+study_region <- read_sf("data/gis-data.gpkg", "ne_states") |> 
+  filter(iso_a2 == "-99") |> 
+  st_geometry()
+
+# prepare ebird data for mapping
+checklists_sf <- checklists |> 
+  # convert to spatial points
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) |> 
+  select(species_observed)
+
+# map
+par(mar = c(0.25, 0.25, 4, 0.25))
+# set up plot area
+plot(st_geometry(checklists_sf), 
+     main = "Willow Tit eBird Observations\nFeb-Apr 2015-2024",
+     col = NA, border = NA)
+# contextual gis data
+plot(ne_land, col = "#cfcfcf", border = "#888888", lwd = 0.5, add = TRUE)
+plot(study_region, col = "#e6e6e6", border = NA, add = TRUE)
+plot(ne_state_lines, col = "#ffffff", lwd = 0.75, add = TRUE)
+plot(ne_country_lines, col = "#ffffff", lwd = 1.5, add = TRUE)
+# ebird observations
+# not observed
+plot(filter(checklists_sf, !species_observed),
+     pch = 19, cex = 0.1, col = alpha("#555555", 0.25),
+     add = TRUE)
+# observed
+plot(filter(checklists_sf, species_observed),
+     pch = 19, cex = 0.3, col = alpha("#4daf4a", 1),
+     add = TRUE)
+# legend
+legend("bottomright", bty = "n",
+       col = c("#555555", "#4daf4a"),
+       legend = c("eBird checklist", "Willow Tit sighting"),
+       pch = 19)
+box()
