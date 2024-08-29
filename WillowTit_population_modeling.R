@@ -1,4 +1,4 @@
-# Modeling Willow Tit population data for the UK 2015-2024.
+# Modeling Willow Tit population data for the UK 2015-2023.
 
 
   ##  This script is adapted from Strimas-Mackey, M., W.M. Hochachka, V. Ruiz-Gutierrez, 
@@ -30,12 +30,12 @@ library(sf)
 
 
 # Import EBD (checklist) data
-f_sed <- "ebd_GB_wiltit1_smp_relJun-2024_sampling.txt"
+f_sed <- "data-raw/ebd_GB_wiltit1_smp_relJul-2024_sampling.txt"
 checklists <- read_sampling(f_sed)
 glimpse(checklists)
 
 # Import observation data
-f_ebd <- "ebd_GB_wiltit1_smp_relJun-2024.txt"
+f_ebd <- "data-raw/ebd_GB_wiltit1_smp_relJul-2024.txt"
 observations <- read_ebd(f_ebd)
 glimpse(observations)
 
@@ -43,19 +43,39 @@ glimpse(observations)
 # Filter checklist data
 checklists <- checklists |> 
   filter(all_species_reported,
-         between(year(observation_date), 2015, 2024),
+         between(year(observation_date), 2015, 2023),
          between(month(observation_date), 2,4)) # Feb-April the pre-breeding season is when WTs are territorial. Also this is the survey period for RSPB/RBPB surveys
 
 # Filter observation data
 observations <- observations |> 
   filter(all_species_reported,
-         between(year(observation_date), 2015,2024),
+         between(year(observation_date), 2015,2023),
          between(month(observation_date), 2,4)) 
 
 # convert checklist locations to points geometries
 checklists_sf <- checklists |> 
   select(checklist_id, latitude, longitude) |> 
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+
+
+
+# boundary of study region, buffered by 1 km
+study_region_buffered <- read_sf("data/gis-data.gpkg", layer = "ne_states") |>
+  filter(iso_a2 == "-99") |>
+  st_transform(crs = st_crs(checklists_sf)) |>
+  st_buffer(dist = 1000)
+
+# spatially subset the checklists to those in the study region
+in_region <- checklists_sf[study_region_buffered, ]
+
+# join to checklists and observations to remove checklists outside region
+checklists <- semi_join(checklists, in_region, by = "checklist_id")
+observations <- semi_join(observations, in_region, by = "checklist_id")
+
+
+
+
+
 
 
 # zero-fill 
@@ -104,16 +124,16 @@ zf_filtered <- zf |>
          effort_speed_kmph <= 100,
          number_observers <= 10)
 
-
+ 
 # plot one of the effort variables to see distribution
 ggplot(zf_filtered)+
-  aes(x = effort_hours)+
-  geom_histogram(binwidth = 0.5,
+  aes(x = number_observers)+
+  geom_histogram(binwidth = 1,
                  aes(y = after_stat(count/ sum(count))))+
   scale_y_continuous(limits = c(0, NA), labels = scales::label_percent())+
-  labs(x = "Duration [hours]",
+  labs(x = "Observers",
        y = "% of eBird checklists",
-       title =  "Distribution of eBird checklist duration")
+       title =  "Distribution of eBird checklist observers")
 
 
 
@@ -132,4 +152,8 @@ checklists <- zf_filtered |>
          hours_of_day, 
          effort_hours, effort_distance_km, effort_speed_kmph,
          number_observers)
-write_csv(checklists, "data/checklists-zf_wiltit_jun_gb.csv", na = "")
+write_csv(checklists, "data/checklists-zf_wiltit_jul_gb.csv", na = "")
+
+
+
+

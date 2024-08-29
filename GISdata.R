@@ -5,6 +5,7 @@
 library(dplyr)
 library(rnaturalearth)
 library(sf)
+library(ggplot2)
 
 # file to save spatial data
 gpkg_file <- "data/gis-data.gpkg"
@@ -65,7 +66,6 @@ ne_country_lines <- read_sf("data/gis-data.gpkg", "ne_country_lines") |>
 ne_state_lines <- read_sf("data/gis-data.gpkg", "ne_state_lines") |> 
   st_geometry()
 study_region <- read_sf("data/gis-data.gpkg", "ne_states") |> 
-  filter(iso_a2 == "-99") |> 
   st_geometry()
 
 # prepare ebird data for mapping
@@ -78,7 +78,7 @@ checklists_sf <- checklists |>
 par(mar = c(0.25, 0.25, 4, 0.25))
 # set up plot area
 plot(st_geometry(checklists_sf), 
-     main = "Willow Tit eBird Observations\nFeb-Apr 2015-2024",
+     main = "Willow Tit eBird Observations\nFeb-Apr 2015-2023",
      col = NA, border = NA)
 # contextual gis data
 plot(ne_land, col = "#cfcfcf", border = "#888888", lwd = 0.5, add = TRUE)
@@ -88,9 +88,10 @@ plot(ne_country_lines, col = "#ffffff", lwd = 1.5, add = TRUE)
 # ebird observations
 # not observed
 plot(filter(checklists_sf, !species_observed),
-     pch = 19, cex = 0.1, col = alpha("#555555", 0.25),
+     pch = 19, cex = 0.02, col = alpha("#555555", 0.1),
      add = TRUE)
 # observed
+
 plot(filter(checklists_sf, species_observed),
      pch = 19, cex = 0.3, col = alpha("#4daf4a", 1),
      add = TRUE)
@@ -100,3 +101,4 @@ legend("bottomright", bty = "n",
        legend = c("eBird checklist", "Willow Tit sighting"),
        pch = 19)
 box()
+
