@@ -1,4 +1,4 @@
-# Modeling Willow Tit population data for the UK 2015-2023.
+# Modeling Willow Tit population data for the UK 2014-2023.
 
 
   ##  This script is adapted from Strimas-Mackey, M., W.M. Hochachka, V. Ruiz-Gutierrez, 
@@ -43,13 +43,13 @@ glimpse(observations)
 # Filter checklist data
 checklists <- checklists |> 
   filter(all_species_reported,
-         between(year(observation_date), 2015, 2023),
+         between(year(observation_date), 2014, 2023),
          between(month(observation_date), 2,4)) # Feb-April the pre-breeding season is when WTs are territorial. Also this is the survey period for RSPB/RBPB surveys
 
 # Filter observation data
 observations <- observations |> 
   filter(all_species_reported,
-         between(year(observation_date), 2015,2023),
+         between(year(observation_date), 2014,2023),
          between(month(observation_date), 2,4)) 
 
 # convert checklist locations to points geometries

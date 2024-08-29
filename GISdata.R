@@ -78,7 +78,7 @@ checklists_sf <- checklists |>
 par(mar = c(0.25, 0.25, 4, 0.25))
 # set up plot area
 plot(st_geometry(checklists_sf), 
-     main = "Willow Tit eBird Observations\nFeb-Apr 2015-2023",
+     main = "Willow Tit eBird Observations\nFeb-Apr 2014-2023",
      col = NA, border = NA)
 # contextual gis data
 plot(ne_land, col = "#cfcfcf", border = "#888888", lwd = 0.5, add = TRUE)
