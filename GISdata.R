@@ -74,6 +74,7 @@ checklists_sf <- checklists |>
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326) |> 
   select(species_observed)
 
+
 # map
 par(mar = c(0.25, 0.25, 4, 0.25))
 # set up plot area
@@ -101,4 +102,33 @@ legend("bottomright", bty = "n",
        legend = c("eBird checklist", "Willow Tit sighting"),
        pch = 19)
 box()
+
+
+
+
+
+# To create a checklist for a single year
+
+WT2015<- checklists |> 
+  filter(year == 2015) |> 
+  # convert to spatial points
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) |> 
+  select(species_observed)
+
+# map
+par(mar = c(0.25, 0.25, 4, 0.25))
+# set up plot area
+plot(st_geometry(WT2015), 
+     main = "Willow Tit eBird Observations\nFeb-Apr 2015",
+     col = NA, border = NA)
+# contextual gis data
+plot(ne_land, col = "#cfcfcf", border = "#888888", lwd = 0.5, add = TRUE)
+plot(study_region, col = "#e6e6e6", border = NA, add = TRUE)
+plot(ne_state_lines, col = "#ffffff", lwd = 0.75, add = TRUE)
+plot(ne_country_lines, col = "#ffffff", lwd = 1.5, add = TRUE)
+# ebird observations
+# observed
+plot(filter(WT2015, species_observed),
+     pch = 19, cex = 0.3, col = alpha("#4daf4a", 1),
+     add = TRUE)
 
