@@ -324,3 +324,4 @@ g_obs_freq <- ggplot(checklists_obs |> filter(n_checklists > 100)) +
 
 # combine
 grid.arrange(g_obs_hist, g_obs_freq)
+
