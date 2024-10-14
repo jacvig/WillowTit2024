@@ -136,8 +136,8 @@ terra::plot(all_years_stack)  # Adjust nc (number of columns) as needed
 
 
 # Assign new names if necessary. # The terra package seems to do this automatically.
-# names(all_years_stack) <- c("2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021")
-
+# names(landcover) <- c("2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023")
+# names(landcover)
 
 
 # Now crop the SpatRaster so it is not so large.

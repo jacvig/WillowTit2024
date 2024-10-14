@@ -155,8 +155,6 @@ checklists <- zf_filtered |>
 write_csv(checklists, "data/checklists-zf_wiltit_jul_gb.csv", na = "")
 
 
-
-
 # Time of day
 # summarize data by hourly bins
 breaks <- seq(0, 24)
