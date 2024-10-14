@@ -163,8 +163,9 @@ rcrop <- crop(rmask, poly)
 
 plot(rcrop)
 
-
-
+# plot for a specific year
 plot(as.factor(rcrop[["Year_2023"]]),
      main = "MODIS Landcover 2023",
      axes = FALSE)
+
+writeRaster(rcrop, filename = "modis_mc12q1_2014-2023_crop.tif", overwrite = TRUE)
