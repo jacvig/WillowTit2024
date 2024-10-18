@@ -170,7 +170,7 @@ r <- writeRaster(r, "data/prediction-grid.tif",
                  gdal = "COMPRESS=DEFLATE")
 
 
-# generate neighborhoods for the prediction grid cell centers
+# generate neighborhoods for the prediction grid cell centers. NB This may take some time to run
 buffers_pg <- as.data.frame(r, cells = TRUE, xy = TRUE) |> 
   select(cell_id = cell, x, y) |> 
   st_as_sf(coords = c("x", "y"), crs = laea_crs, remove = FALSE) |> 
@@ -178,7 +178,7 @@ buffers_pg <- as.data.frame(r, cells = TRUE, xy = TRUE) |>
   st_buffer(set_units(3, "km"))
 
 
-# estimate landscape metrics for each cell in the prediction grid
+# estimate landscape metrics for each cell in the prediction grid. NB This may take some time to run
 lsm_pg <- NULL
 for (i in seq_len(nrow(buffers_pg))) {
   buffer_i <- st_transform(buffers_pg[i, ], crs = crs(landcover))
@@ -237,7 +237,13 @@ write_csv(drop_na(env_variables_pg),
 
 
 
-# example map. Convert environmental variables to a spatial format. NB. make sure rcrop, laea_crs, gpkg, and r objects are available.
+  # Write R objects to csv to save. Where an object takes a long time to run, save it individually and then read it back in when needed.
+  # e.g.write.csv(x=buffers, file ="Robjects/buffers.csv" )
+
+  # To read back in
+  # buffers<- read.csv(file = "Robjects/buffers.csv")
+
+# Example map. Convert environmental variables to a spatial format. NB. make sure laea_crs and r objects are available.
 forest_cover <- env_variables_pg |> 
   # convert to spatial features
   st_as_sf(coords = c("x", "y"), crs = laea_crs) |> 
