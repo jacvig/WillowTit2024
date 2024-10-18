@@ -243,15 +243,18 @@ write_csv(drop_na(env_variables_pg),
   # To read back in
   # buffers<- read.csv(file = "Robjects/buffers.csv")
 
+names(env_variables_pg)
+
 # Example map. Convert environmental variables to a spatial format. NB. make sure laea_crs and r objects are available.
 forest_cover <- env_variables_pg |> 
   # convert to spatial features
   st_as_sf(coords = c("x", "y"), crs = laea_crs) |> 
   # rasterize points
-  rasterize(r, field = "pland_c04_deciduous_broadleaf")
+  rasterize(r, field = "pland_c09_savanna") 
 
 # make a map
 par(mar = c(0.25, 0.25, 2, 0.25))
 plot(forest_cover, 
      axes = FALSE, box = FALSE, col = viridis(10), 
-     main = "Deciduous Broadleaf Forest (% cover)")
+     main = "Savanna (% cover)")
+mtext("Tree cover 10-30% (canopy >2m)", side = 3, line = -0.5, cex = 0.8)
