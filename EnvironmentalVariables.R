@@ -94,4 +94,158 @@ lsm_wide <- lsm |>
   arrange(locality_id, year_lc)
 
 
+
 # Elevation
+
+# Download elevation data at 1 km resolution from https://www.earthenv.org/topography
+# Calculate the mean and standard deviation of the elevation within 3 km diameter circular neighborhoods centered on each checklist location.
+
+
+# elevation raster
+elevation <- rast("data/elevation_1KMmd_GMTEDmd.tif")
+
+# mean and standard deviation within each circular neighborhood
+elev_buffer <- exact_extract(elevation, buffers, fun = c("mean", "stdev"),
+                             progress = FALSE) |> 
+  # add variables to uniquely identify each point
+  mutate(locality_id = buffers$locality_id, year_lc = buffers$year_lc) |> 
+  select(locality_id, year_lc, 
+         elevation_mean = mean,
+         elevation_sd = stdev)
+
+# combine elevation and landcover
+env_variables <- inner_join(elev_buffer, lsm_wide,
+                            by = c("locality_id", "year_lc"))
+
+# attach and expand to checklists
+env_variables <- checklists |> 
+  select(checklist_id, locality_id, year_lc) |> 
+  inner_join(env_variables, by = c("locality_id", "year_lc")) |> 
+  select(-locality_id, -year_lc)
+
+# save to csv, dropping any rows with missing variables
+write_csv(drop_na(env_variables), 
+          "data/environmental-variables_checklists.csv", 
+          na = "")
+
+
+
+# Prediction grid
+
+# using the MODIS landcover data from the most recent year for which they’re available in addition to elevation data
+# create a template raster with cells equal in dimension to the diameter of the circular neighborhoods
+# use an equal area coordinate reference system for the prediction grid; we’ll use a Lambert’s azimuthal equal area projection centered on the study region.
+
+# Find centroid of the data
+checklists_sf |> 
+  st_union() |> 
+  st_centroid() |> 
+  st_coordinates() |> 
+  round(1)
+  #         X    Y
+  # [1,] -1.6 52.9
+
+# lambert's azimuthal equal area projection for UK
+laea_crs <- st_crs("+proj=laea +lat_0=52.9 +lon_0=-1.6")
+
+# Find layers for filtering
+gpkg <- st_layers("data/gis-data.gpkg")
+gpkg
+
+# study region: United Kingdom
+study_region <- read_sf("data/gis-data.gpkg", layer = "ne_states") |> 
+   st_transform(crs = laea_crs)
+
+# create a raster template covering the region with 3 km resolution
+r <- rast(study_region, res = c(3000, 3000))
+
+# fill the raster with 1s inside the study region
+r <- rasterize(study_region, r, field = 1) |> 
+  setNames("study_region")
+
+
+# save for later use
+r <- writeRaster(r, "data/prediction-grid.tif",
+                 overwrite = TRUE,
+                 gdal = "COMPRESS=DEFLATE")
+
+
+# generate neighborhoods for the prediction grid cell centers
+buffers_pg <- as.data.frame(r, cells = TRUE, xy = TRUE) |> 
+  select(cell_id = cell, x, y) |> 
+  st_as_sf(coords = c("x", "y"), crs = laea_crs, remove = FALSE) |> 
+  st_transform(crs = 4326) |> 
+  st_buffer(set_units(3, "km"))
+
+
+# estimate landscape metrics for each cell in the prediction grid
+lsm_pg <- NULL
+for (i in seq_len(nrow(buffers_pg))) {
+  buffer_i <- st_transform(buffers_pg[i, ], crs = crs(landcover))
+  
+  # crop and mask landcover raster so all values outside buffer are missing
+  lsm_pg[[i]] <- crop(landcover[["2022"]], buffer_i) |> 
+    mask(buffer_i) |> 
+    # calcualte landscape metrics
+    calculate_lsm(level = "class", metric = c("pland", "ed")) |> 
+    # add variable to uniquely identify each point
+    mutate(cell_id = buffer_i$cell_id) |> 
+    select(cell_id, class, metric, value)
+}
+lsm_pg <- bind_rows(lsm_pg)
+
+# transform to wide format
+lsm_wide_pg <- lsm_pg |> 
+  # fill missing classes with zeros
+  complete(cell_id,
+           class = lc_classes$class,
+           metric = c("ed", "pland"),
+           fill = list(value = 0)) |> 
+  # bring in more descriptive names
+  inner_join(select(lc_classes, class, label), by = "class") |> 
+  # transform from long to wide format
+  pivot_wider(values_from = value,
+              names_from = c(class, label, metric),
+              names_glue = "{metric}_c{str_pad(class, 2, pad = '0')}_{label}",
+              names_sort = TRUE,
+              values_fill = 0) |> 
+  arrange(cell_id)
+
+
+# mean and standard deviation of elevation
+elev_buffer_pg <- exact_extract(elevation, buffers_pg, 
+                                fun = c("mean", "stdev"),
+                                progress = FALSE) |> 
+  # add variables to uniquely identify each point
+  mutate(cell_id = buffers_pg$cell_id) |> 
+  select(cell_id, elevation_mean = mean, elevation_sd = stdev)
+
+
+# combine landcover and elevation
+env_variables_pg <- inner_join(elev_buffer_pg, lsm_wide_pg, by = "cell_id")
+
+# attach the xy coordinates of the cell centers
+env_variables_pg <- buffers_pg |> 
+  st_drop_geometry() |> 
+  select(cell_id, x, y) |> 
+  inner_join(env_variables_pg, by = "cell_id")
+
+# save as csv, dropping any rows with missing variables
+write_csv(drop_na(env_variables_pg),
+          "data/environmental-variables_prediction-grid.csv", 
+          na = "")
+
+
+
+# example map
+forest_cover <- env_variables_pg |> 
+  # convert to spatial features
+  st_as_sf(coords = c("x", "y"), crs = laea_crs) |> 
+  # rasterize points
+  rasterize(r, field = "pland_c04_deciduous_broadleaf")
+
+# make a map
+par(mar = c(0.25, 0.25, 2, 0.25))
+plot(forest_cover, 
+     axes = FALSE, box = FALSE, col = viridis(10), 
+     main = "Deciduous Broadleaf Forest (% cover)")
