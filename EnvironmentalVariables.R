@@ -237,7 +237,7 @@ write_csv(drop_na(env_variables_pg),
 
 
 
-# example map
+# example map. Convert environmental variables to a spatial format. NB. make sure rcrop, laea_crs, gpkg, and r objects are available.
 forest_cover <- env_variables_pg |> 
   # convert to spatial features
   st_as_sf(coords = c("x", "y"), crs = laea_crs) |> 

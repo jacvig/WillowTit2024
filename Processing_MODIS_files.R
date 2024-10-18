@@ -154,7 +154,7 @@ pol
 getwd()
 datadir <- file.path(dirname(tempdir()), "filepath/data")
 mf <- file.path(datadir, "modis_mc12q1_2014-2023.tif")
-rmask <- rast("modis_mc12q1_2014-2023.tif")
+rmask <- rast("data/modis_mc12q1_2014-2023.tif")
 prj <- crs(rmask)
 prj
 poly <- project(pol, prj)
