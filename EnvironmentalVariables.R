@@ -256,5 +256,5 @@ forest_cover <- env_variables_pg |>
 par(mar = c(0.25, 0.25, 2, 0.25))
 plot(forest_cover, 
      axes = FALSE, box = FALSE, col = viridis(10), 
-     main = "Savanna (% cover)")
-mtext("Tree cover 10-30% (canopy >2m)", side = 3, line = -0.5, cex = 0.8)
+     main = "savanna (% cover)")
+mtext("Tree cover 10-30% (canopy >2m)", side = 3, line = -0.5, cex = 0.8)  # lc_classes object provides a description for each class. 
