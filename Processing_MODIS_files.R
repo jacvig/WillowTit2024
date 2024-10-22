@@ -1,8 +1,8 @@
 # Processing MODIS files
 
-# For identifying, downloading, and processing MODIS data for use in species distribution models.
-# This code is modified from Spacial Data Science https://rspatial.org/modis/2-download.html on downloading MODIS data.
-# NB: The MODIS package has changed to version 6.1 which comes through in the tiles.
+  ## For identifying, downloading, and processing MODIS data for use in species distribution models.
+  ## This code is modified from Spacial Data Science https://rspatial.org/modis/2-download.html on downloading MODIS data.
+  ## NB: The MODIS package has changed to version 6.1 which comes through in the tiles.
 
 # Load packages
 library(terra)
