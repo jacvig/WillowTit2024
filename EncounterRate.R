@@ -216,3 +216,220 @@ ggplot(calibration_curve) +
 
   ## The estimated encounter rates are larger than the observed encounter rates: All points fall below the x-y line, i.e. it is not well calibrated
   ## though relative ranking is good: points with higher estimated rates also have higher observed rates.
+
+
+
+# Threshholding
+
+# mcc and fscore calculation for various thresholds
+mcc_f1 <- mccf1(
+  # observed detection/non-detection
+  response = obs_pred$obs,
+  # predicted encounter rate from random forest
+  predictor = obs_pred$pred)
+
+# identify best threshold
+mcc_f1_summary <- summary(mcc_f1)
+#>  mccf1_metric best_threshold
+#>         0.399          0.508
+threshold <- mcc_f1_summary$best_threshold[1]
+  #> [1] 0.7729254
+
+
+
+# Assessment 
+
+# get the test set held out from training
+checklists_test <- filter(checklists_ss, type == "test") |> 
+  mutate(species_observed = as.integer(species_observed))
+
+# predict to test data using random forest model
+pred_er <- predict(er_model, data = checklists_test, type = "response")
+# extract probability of detection
+pred_er <- pred_er$predictions[, 2]
+# convert predictions to binary (presence/absence) using the threshold
+pred_binary <- as.integer(pred_er > threshold)
+# calibrate
+pred_calibrated <- predict(calibration_model, 
+                           newdata = data.frame(pred = pred_er), 
+                           type = "response") |> 
+  as.numeric()
+# constrain probabilities to 0-1
+pred_calibrated[pred_calibrated < 0] <- 0
+pred_calibrated[pred_calibrated > 1] <- 1
+# combine observations and estimates
+obs_pred_test <- data.frame(id = seq_along(pred_calibrated),
+                            # actual detection/non-detection
+                            obs = as.integer(checklists_test$species_observed),
+                            # binary detection/on-detection prediction
+                            pred_binary = pred_binary,
+                            # calibrated encounter rate
+                            pred_calibrated = pred_calibrated)
+
+# mean squared error (mse)
+mse <- mean((obs_pred_test$obs - obs_pred_test$pred_calibrated)^2, na.rm = TRUE)
+
+# precision-recall auc
+em <- precrec::evalmod(scores = obs_pred_test$pred_binary, 
+                       labels = obs_pred_test$obs)
+pr_auc <- precrec::auc(em) |> 
+  filter(curvetypes == "PRC") |> 
+  pull(aucs)
+
+# calculate metrics for binary prediction: sensitivity, specificity
+pa_metrics <- obs_pred_test |> 
+  select(id, obs, pred_binary) |> 
+  PresenceAbsence::presence.absence.accuracy(na.rm = TRUE, st.dev = FALSE)
+
+# mcc and f1
+mcc_f1 <- calculate_mcc_f1(obs_pred_test$obs, obs_pred_test$pred_binary)
+
+# combine ppms together
+ppms <- data.frame(
+  mse = mse,
+  sensitivity = pa_metrics$sensitivity,
+  specificity = pa_metrics$specificity,
+  pr_auc = pr_auc,
+  mcc = mcc_f1$mcc,
+  f1 = mcc_f1$f1
+)
+knitr::kable(pivot_longer(ppms, everything()), digits = 3)
+  #>  |name        | value|
+  #>  |:-----------|-----:|
+  #>  |mse         | 0.007| # mean squared error
+  #>  |sensitivity | 0.498|
+  #>  |specificity | 0.989|
+  #>  |pr_auc      | 0.152| # precision-recall auc
+  #>  |mcc         | 0.367| # mean square contingency coefficient
+  #>  |f1          | 0.360| # F score
+  #>  
+  #>  # The interpretation, I think, is that the closer each of these PPMs is to 1, the more likely.
+      # NB Remember eBird data is imbalanced with more non-detections so this has an impact on the predictions.
+
+
+
+
+# Habitat associations
+
+
+# Predictor importance
+
+# extract predictor importance from the random forest model object
+pred_imp <- er_model$variable.importance
+pred_imp <- data.frame(predictor = names(pred_imp), 
+                       importance = pred_imp) |> 
+  arrange(desc(importance))
+# plot importance of top 20 predictors
+ggplot(head(pred_imp, 20)) + 
+  aes(x = reorder(predictor, importance), y = importance) +
+  geom_col() +
+  geom_hline(yintercept = 0, linewidth = 2, colour = "#555555") +
+  scale_y_continuous(expand = c(0, 0)) +
+  coord_flip() +
+  labs(x = NULL, 
+       y = "Predictor Importance (Gini Index)") +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        panel.grid.major.x = element_line(colour = "#cccccc", linewidth = 0.5))
+
+
+
+# Partial dependence
+
+# function to calculate partial dependence for a single predictor
+calculate_pd <- function(predictor, er_model, calibration_model,
+                         data, x_res = 25, n = 1000) {
+  # create prediction grid using quantiles
+  x_grid <- quantile(data[[predictor]],
+                     probs = seq(from = 0, to = 1, length = x_res),
+                     na.rm = TRUE)
+  # remove duplicates
+  x_grid <- x_grid[!duplicated(signif(x_grid, 8))]
+  x_grid <- unname(unique(x_grid))
+  grid <- data.frame(predictor = predictor, x = x_grid)
+  names(grid) <- c("predictor", predictor)
+  
+  # subsample training data
+  n <- min(n, nrow(data))
+  data <- data[sample(seq.int(nrow(data)), size = n, replace = FALSE), ]
+  
+  # drop focal predictor from data
+  data <- data[names(data) != predictor]
+  grid <- merge(grid, data, all = TRUE)
+  
+  # predict encounter rate
+  p <- predict(er_model, data = grid)
+  
+  # summarize
+  pd <- grid[, c("predictor", predictor)]
+  names(pd) <- c("predictor", "x")
+  pd$encounter_rate <- p$predictions[, 2]
+  pd <- dplyr::group_by(pd, predictor, x)
+  pd <- dplyr::summarise(pd,
+                         encounter_rate = mean(encounter_rate, na.rm = TRUE),
+                         .groups = "drop")
+  
+  # calibrate
+  pd$encounter_rate <- predict(calibration_model, 
+                               newdata = data.frame(pred = pd$encounter_rate), 
+                               type = "response")
+  pd$encounter_rate <- as.numeric(pd$encounter_rate)
+  # constrain to 0-1
+  pd$encounter_rate[pd$encounter_rate < 0] <- 0
+  pd$encounter_rate[pd$encounter_rate > 1] <- 1
+  
+  return(pd)
+}
+
+# calculate partial dependence for each of the top 6 predictors
+pd <- NULL
+for (predictor in head(pred_imp$predictor)) {
+  pd <- calculate_pd(predictor, 
+                     er_model = er_model, 
+                     calibration_model = calibration_model,
+                     data = checklists_train) |> 
+    bind_rows(pd)
+}
+head(pd)
+    #> # A tibble: 6 × 3
+    #>   predictor                         x encounter_rate
+    #>   <chr>                         <dbl>          <dbl>
+    #>  1 ed_c13_urban  0           0.00270
+    #>  2 ed_c13_urban  1.08        0.00278
+    #>  3 ed_c13_urban  2.16        0.00274
+    #>  4 ed_c13_urban  3.16        0.00281
+    #>  5 ed_c13_urban  3.78        0.00279
+    #>  6 ed_c13_urban  4.32        0.00286
+
+# plot partial dependence
+ggplot(pd) +
+  aes(x = x, y = encounter_rate) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ factor(predictor, levels = rev(unique(predictor))), 
+             ncol = 2, scales = "free") +
+  labs(x = NULL, y = "Encounter Rate") +
+  theme_minimal() +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        axis.line = element_line(color = "grey60"),
+        axis.ticks  = element_line(color = "grey60"))
+
+      
+      # calculate partial dependence for a specific variable
+      pd_woody_savanna <- calculate_pd("pland_c08_woody_savanna", 
+                                      er_model = er_model, 
+                                      calibration_model = calibration_model,
+                                 data = checklists_train)
+
+     # plot partial dependence
+     ggplot(pd_woody_savanna) +
+        aes(x = x, y = encounter_rate) +
+        geom_line() +
+        geom_point() +
+        labs(x = NULL, y = "Encounter Rate") +
+        theme_minimal() +
+        theme_minimal() +
+        theme(panel.grid = element_blank(),
+              axis.line = element_line(color = "grey60"),
+              axis.ticks  = element_line(color = "grey60"))
