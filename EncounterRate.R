@@ -25,16 +25,16 @@ library(tidyr)
 set.seed(1)
 
 # environmental variables: landcover and elevation
-env_vars <- read_csv("data/environmental-variables_checklists_jun_us-ga.csv")
+env_vars <- read_csv("data/environmental-variables_checklists.csv")
 
 # zero-filled ebird data combined with environmental data
-checklists_env <- read_csv("data/checklists-zf_woothr_jun_us-ga.csv") |> 
+checklists_env <- read_csv("data/checklists-zf_wiltit_jul_gb.csv") |> 
   inner_join(env_vars, by = "checklist_id")
 
 # prediction grid
-pred_grid <- read_csv("data/environmental-variables_prediction-grid_us-ga.csv")
+pred_grid <- read_csv("data/environmental-variables_prediction-grid.csv")
 # raster template for the grid
-r <- rast("data/prediction-grid_us-ga.tif")
+r <- rast("data/prediction-grid.tif")
 # get the coordinate reference system of the prediction grid
 crs <- st_crs(r)
 
