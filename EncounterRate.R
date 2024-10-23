@@ -416,20 +416,103 @@ ggplot(pd) +
         axis.ticks  = element_line(color = "grey60"))
 
       
-      # calculate partial dependence for a specific variable
-      pd_woody_savanna <- calculate_pd("pland_c08_woody_savanna", 
-                                      er_model = er_model, 
-                                      calibration_model = calibration_model,
-                                 data = checklists_train)
+  
 
-     # plot partial dependence
-     ggplot(pd_woody_savanna) +
-        aes(x = x, y = encounter_rate) +
-        geom_line() +
-        geom_point() +
-        labs(x = NULL, y = "Encounter Rate") +
-        theme_minimal() +
-        theme_minimal() +
-        theme(panel.grid = element_blank(),
-              axis.line = element_line(color = "grey60"),
-              axis.ticks  = element_line(color = "grey60"))
+     
+  
+# Prediction
+
+# Standardised effort variables
+# find peak time of day from partial dependence
+pd_time <- calculate_pd("hours_of_day",
+                        er_model = er_model, 
+                        calibration_model = calibration_model,
+                        data = checklists_train) |> 
+  select(hours_of_day = x, encounter_rate)
+
+# histogram
+g_hist <- ggplot(checklists_train) +
+  aes(x = hours_of_day) +
+  geom_histogram(binwidth = 1, center = 0.5, color = "grey30",
+                 fill = "grey50") +
+  scale_x_continuous(breaks = seq(0, 24, by = 3)) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = "Hours since midnight",
+       y = "# checklists",
+       title = "Distribution of observation start times")
+
+# partial dependence plot
+g_pd <- ggplot(pd_time) +
+  aes(x = hours_of_day, y = encounter_rate) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(0, 24, by = 3)) +
+  labs(x = "Hours since midnight",
+       y = "Encounter rate",
+       title = "Observation start time partial dependence")
+
+# combine
+grid.arrange(g_hist, g_pd)
+
+
+# trim ends of partial dependence
+pd_time_trimmed <- pd_time[c(-1, -nrow(pd_time)), ]
+
+# identify time maximizing encounter rate
+pd_time_trimmed <- arrange(pd_time_trimmed, desc(encounter_rate))
+t_peak <- pd_time_trimmed$hours_of_day[1]
+print(t_peak)
+#> [1] 6.866667
+
+
+# add effort covariates to prediction grid
+pred_grid_eff <- pred_grid |> 
+  mutate(observation_date = ymd("2023-03-16"), #for the middle of our focal window for the latest year for which we have eBird data.i.e. 16 March 2022
+         year = year(observation_date),
+         day_of_year = yday(observation_date),
+         hours_of_day = t_peak,
+         effort_distance_km = 2,
+         effort_hours = 1,
+         effort_speed_kmph = 2,
+         number_observers = 1)
+
+
+
+# Model estimates
+
+# estimate encounter rate
+pred_er <- predict(er_model, data = pred_grid_eff, type = "response")
+pred_er <- pred_er$predictions[, 2]
+# define range-boundary
+pred_binary <- as.integer(pred_er > threshold)
+# apply calibration
+pred_er_cal <- predict(calibration_model, 
+                       data.frame(pred = pred_er), 
+                       type = "response") |> 
+  as.numeric()
+# constrain to 0-1
+pred_er_cal[pred_er_cal < 0] <- 0
+pred_er_cal[pred_er_cal > 1] <- 1
+# combine predictions with coordinates from prediction grid
+predictions <- data.frame(cell_id = pred_grid_eff$cell_id,
+                          x = pred_grid_eff$x,
+                          y = pred_grid_eff$y,
+                          in_range = pred_binary, 
+                          encounter_rate = pred_er_cal)
+
+
+r_pred <- predictions |> 
+  # convert to spatial features
+  st_as_sf(coords = c("x", "y"), crs = crs) |> 
+  select(in_range, encounter_rate) |> 
+  # rasterize
+  rasterize(r, field = c("in_range", "encounter_rate"))
+print(r_pred)
+#> class       : SpatRaster 
+#> dimensions  : 399, 217, 2  (nrow, ncol, nlyr)
+#> resolution  : 3000, 3000  (x, y)
+#> extent      : -423875.9, 227124.1, -313763.3, 883236.7  (xmin, xmax, ymin, ymax)
+#> coord. ref. : +proj=laea +lat_0=52.9 +lon_0=-1.6 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs 
+#> source(s)   : memory
+#> names       : in_range, encounter_rate 
+#> min values  :        0,      0.0000000 
+#> max values  :        1,      0.1511175 
