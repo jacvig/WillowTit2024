@@ -416,6 +416,26 @@ ggplot(pd) +
         axis.ticks  = element_line(color = "grey60"))
 
       
+      
+      # calculate partial dependence for a single varaible
+      pd_woody_savanna <- calculate_pd("pland_c08_woody_savanna", 
+                                      er_model = er_model, 
+                                      calibration_model = calibration_model,
+                                       data = checklists_train)
+
+      # plot partial dependence
+      ggplot(pd_woody_savanna) +
+        aes(x = x, y = encounter_rate) +
+        geom_line() +
+        geom_point() +
+        labs(x = NULL, y = "Encounter Rate") +
+        theme_minimal() +
+        theme_minimal() +
+        theme(panel.grid = element_blank(),
+              axis.line = element_line(color = "grey60"),
+              axis.ticks  = element_line(color = "grey60"))
+
+
   
 
      
@@ -516,3 +536,72 @@ print(r_pred)
 #> names       : in_range, encounter_rate 
 #> min values  :        0,      0.0000000 
 #> max values  :        1,      0.1511175 
+
+
+
+
+
+# Mapping 
+
+par(mar = c(0.25, 0.25, 1.25, 0.25))
+# set up plot area
+plot(study_region, 
+     main = "Willow Tit Range (March 2023)",
+     col = NA, border = NA)
+plot(ne_land, col = "#cfcfcf", border = "#888888", lwd = 0.5, add = TRUE)
+
+# convert binary prediction to categorical
+r_range <- as.factor(r_pred[["in_range"]])
+plot(r_range, col = c("#e6e6e6", "forestgreen"),
+     maxpixels = ncell(r_range),
+     legend = FALSE, axes = FALSE, bty = "n",
+     add = TRUE)
+
+# borders
+plot(ne_state_lines, col = "#ffffff", lwd = 0.75, add = TRUE)
+plot(ne_country_lines, col = "#ffffff", lwd = 1.5, add = TRUE)
+plot(study_region, border = "#000000", col = NA, lwd = 1, add = TRUE)
+box()
+
+
+# encounter rate
+par(mar = c(4, 0.25, 0.25, 0.25))
+# set up plot area
+plot(study_region, col = NA, border = NA)
+plot(ne_land, col = "#cfcfcf", border = "#888888", lwd = 0.5, add = TRUE)
+
+# define quantile breaks
+brks <- global(r_pred[["encounter_rate"]], fun = quantile, 
+               probs = seq(0, 1, 0.1), na.rm = TRUE) |> 
+  as.numeric() |> 
+  unique()
+# label the bottom, middle, and top value
+lbls <- round(c(0, median(brks), max(brks)), 2)
+# ebird status and trends color palette
+pal <- ebirdst_palettes(length(brks) - 1)
+plot(r_pred[["encounter_rate"]], 
+     col = pal, breaks = brks, 
+     maxpixels = ncell(r_pred),
+     legend = FALSE, axes = FALSE, bty = "n",
+     add = TRUE)
+
+# borders
+plot(ne_state_lines, col = "#ffffff", lwd = 0.75, add = TRUE)
+plot(ne_country_lines, col = "#ffffff", lwd = 1.5, add = TRUE)
+plot(study_region, border = "#000000", col = NA, lwd = 1, add = TRUE)
+box()
+
+# legend
+par(new = TRUE, mar = c(0, 0, 0, 0))
+title <- "Willow Tit Encounter Rate (March 2023)"
+image.plot(zlim = c(0, 1), legend.only = TRUE, 
+           col = pal, breaks = seq(0, 1, length.out = length(brks)),
+           smallplot = c(0.25, 0.75, 0.03, 0.06),
+           horizontal = TRUE,
+           axis.args = list(at = c(0, 0.5, 1), labels = lbls,
+                            fg = "black", col.axis = "black",
+                            cex.axis = 0.75, lwd.ticks = 0.5,
+                            padj = -1.5),
+           legend.args = list(text = title,
+                              side = 3, col = "black",
+                              cex = 1, line = 0))
