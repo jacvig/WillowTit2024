@@ -231,7 +231,7 @@ mcc_f1 <- mccf1(
 # identify best threshold
 mcc_f1_summary <- summary(mcc_f1)
 #>  mccf1_metric best_threshold
-#>         0.399          0.508
+#>  0.328892      0.7729254
 threshold <- mcc_f1_summary$best_threshold[1]
   #> [1] 0.7729254
 
